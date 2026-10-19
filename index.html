@@ -1,0 +1,207 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>pedalfit — private AI bike fit</title>
+  <link rel="icon" href="favicon.svg" type="image/svg+xml" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <header class="top">
+    <div class="brand"><span class="logo">◎</span> pedal<span class="dim">fit</span></div>
+    <nav class="steps" id="steps">
+      <button data-step="rider" class="active"><b>1</b> Rider &amp; bike</button>
+      <button data-step="mobility"><b>2</b> Mobility</button>
+      <button data-step="video"><b>3</b> Ride video</button>
+      <button data-step="results" disabled><b>4</b> Fit report</button>
+    </nav>
+    <button class="ghost" id="historyBtn">History</button>
+  </header>
+
+  <main>
+    <!-- 1. Rider & bike -->
+    <section class="panel" data-panel="rider">
+      <h1>Your body. Your bike. Your fit.</h1>
+      <p class="lead">An AI bike fit that runs entirely on this computer. Tell us about you and your bike, run a quick mobility check,
+        film 15 seconds of pedalling, and get your joint angles, your target fit window and exactly what to change — in millimetres.</p>
+
+      <div class="grid2">
+        <div class="card">
+          <h2>Rider</h2>
+          <label>Height <span class="unit">cm</span><input type="number" id="height" min="120" max="220" value="178" /></label>
+          <label>Crank length <span class="unit">mm</span>
+            <select id="crank"><option>165</option><option>167.5</option><option>170</option><option selected>172.5</option><option>175</option><option>177.5</option></select>
+          </label>
+          <p class="note">Height sets the millimetre scale for your recommendations; crank length is used to cross-check it.</p>
+        </div>
+        <div class="card">
+          <h2>Bike &amp; goal</h2>
+          <label>Bike type<select id="bike"></select></label>
+          <div class="label">Fit goal</div>
+          <div class="seg" id="goal"></div>
+        </div>
+      </div>
+
+      <details class="card">
+        <summary><h2>Current setup <span class="dim">(optional — used for the stem calculator and new saddle height)</span></h2></summary>
+        <div class="grid4">
+          <label>Saddle height <span class="unit">mm</span><input type="number" id="saddleHeight" placeholder="e.g. 735" /></label>
+          <label>Stem length <span class="unit">mm</span><input type="number" id="stemLength" value="100" /></label>
+          <label>Stem angle <span class="unit">°</span><input type="number" id="stemAngle" value="-6" /></label>
+          <label>Spacers <span class="unit">mm</span><input type="number" id="spacers" value="20" /></label>
+          <label>Head-tube angle <span class="unit">°</span><input type="number" id="headAngle" value="73" step="0.5" /></label>
+        </div>
+      </details>
+      <div class="actions"><button class="primary" data-next="mobility">Continue to mobility →</button></div>
+    </section>
+
+    <!-- 2. Mobility -->
+    <section class="panel" data-panel="mobility" hidden>
+      <h1>Mobility assessment</h1>
+      <p class="lead">Everyone moves differently. Your flexibility shifts your target window — tighter riders get a more upright, forgiving position.</p>
+      <div class="grid2">
+        <div class="card">
+          <h2>Straight-leg raise <span class="dim">(hamstrings)</span></h2>
+          <p class="note">Lie on your back, keep both legs straight and lift one leg as high as you can without bending the knee or lifting your hips. Have someone photograph you from the side.</p>
+          <div class="row">
+            <label class="file">📷 Measure from photo<input type="file" id="slrPhoto" accept="image/*" /></label>
+            <span class="or">or enter</span>
+            <label class="inline"><input type="number" id="slr" min="20" max="130" placeholder="°" /> °</label>
+          </div>
+          <canvas id="slrCanvas" class="slr" hidden></canvas>
+          <p class="note" id="slrMsg"></p>
+          <p class="note">Under 65° tight · 65–80° average · over 80° flexible</p>
+        </div>
+        <div class="card">
+          <h2>Toe touch</h2>
+          <p class="note">Stand with straight legs and bend forward. How far do you reach?</p>
+          <div class="seg" id="toeTouch">
+            <button data-v="palms">Palms on floor</button><button data-v="fingers" class="on">Fingertips to floor</button>
+            <button data-v="shins">Shins / ankles</button><button data-v="knees">Knees</button>
+          </div>
+          <h2 class="mt">Discomfort on the bike</h2>
+          <label class="check"><input type="checkbox" id="backPain" /> Lower-back or neck pain</label>
+          <div class="label">Knee pain</div>
+          <div class="seg" id="kneePain">
+            <button data-v="none" class="on">None</button><button data-v="front">Front of knee</button><button data-v="back">Back of knee</button>
+          </div>
+        </div>
+      </div>
+      <div class="card flexresult" id="flexResult"></div>
+      <div class="actions"><button class="ghost" data-next="rider">← Back</button><button class="primary" data-next="video">Continue to ride video →</button></div>
+    </section>
+
+    <!-- 3. Video -->
+    <section class="panel" data-panel="video" hidden>
+      <h1>Ride video</h1>
+      <div class="grid2">
+        <div class="card">
+          <h2>How to film</h2>
+          <ol class="howto">
+            <li>Put your bike on a trainer (or use a smart / spin bike) on level ground.</li>
+            <li>Camera <b>side-on</b>, square to the bike, at <b>hip height</b>, 2.5–4 m away, in <b>landscape</b>.</li>
+            <li>Whole body, bike and both wheels in frame. Good light, fitted clothing, no baggy shorts.</li>
+            <li>Ride in your normal position (hoods for road, aero bars for TT) at a steady 80–90 rpm with some resistance.</li>
+            <li>Record at least <b>15 seconds</b> once you're warmed up.</li>
+          </ol>
+        </div>
+        <div class="card">
+          <h2>Your video</h2>
+          <div class="row">
+            <label class="file primary">⬆ Upload video<input type="file" id="videoFile" accept="video/*" /></label>
+            <button class="ghost" id="recordBtn">● Record with camera</button>
+          </div>
+          <div class="stage" id="stage">
+            <video id="video" playsinline muted></video>
+            <canvas id="overlay"></canvas>
+            <div class="countdown" id="countdown" hidden></div>
+          </div>
+          <div class="row">
+            <label class="inline">Model
+              <select id="model"><option value="heavy">Heavy (most accurate)</option><option value="full">Full (faster)</option></select>
+            </label>
+            <button class="primary" id="analyzeBtn" disabled>Analyse my fit</button>
+          </div>
+          <div class="progress" id="progress" hidden><div></div><span></span></div>
+          <p class="error" id="videoError"></p>
+        </div>
+      </div>
+      <div class="actions"><button class="ghost" data-next="mobility">← Back</button></div>
+    </section>
+
+    <!-- 4. Results -->
+    <section class="panel" data-panel="results" hidden>
+      <div class="reporthead">
+        <div>
+          <h1>Your fit report</h1>
+          <p class="lead" id="summary"></p>
+        </div>
+        <div class="row noprint"><button class="ghost" id="printBtn">Print / PDF</button></div>
+      </div>
+      <div class="warnings" id="warnings"></div>
+
+      <div class="card">
+        <h2>Recommendations</h2>
+        <ol class="recs" id="recs"></ol>
+      </div>
+
+      <div class="card">
+        <h2>Fit window</h2>
+        <p class="note" id="windowNote"></p>
+        <div class="gauges" id="gauges"></div>
+      </div>
+
+      <div class="card">
+        <h2>Key positions</h2>
+        <p class="note">Joint angles at three points in a representative pedal stroke.</p>
+        <div class="snaps" id="snaps"></div>
+      </div>
+
+      <div class="grid2">
+        <div class="card">
+          <h2>Motion replay</h2>
+          <div class="stage" id="replayStage">
+            <video id="replay" playsinline muted loop controls></video>
+            <canvas id="replayOverlay"></canvas>
+          </div>
+        </div>
+        <div class="card">
+          <h2>Joint tracking</h2>
+          <p class="note">Paths traced by each joint across the whole video. Tight, repeatable loops are good; wide or wandering paths show excess movement.</p>
+          <canvas id="traces" class="traces"></canvas>
+          <div class="legend" id="traceLegend"></div>
+          <div class="kv" id="movement"></div>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2>Angles through the stroke</h2>
+        <canvas id="chart" class="chart"></canvas>
+        <div class="legend" id="chartLegend"></div>
+      </div>
+
+      <div class="card" id="stemCard">
+        <h2>Stem calculator</h2>
+        <p class="note">Find stem and spacer combinations that move your bars by the recommended amount. Edit the targets to explore.</p>
+        <div class="grid4">
+          <label>Reach change <span class="unit">mm</span><input type="number" id="dReach" value="0" /></label>
+          <label>Height change <span class="unit">mm</span><input type="number" id="dStack" value="0" /></label>
+          <label>Max spacers <span class="unit">mm</span><input type="number" id="maxSpacers" value="40" /></label>
+        </div>
+        <table class="table" id="stemTable"></table>
+      </div>
+    </section>
+  </main>
+
+  <dialog id="historyDlg">
+    <h2>Fit history</h2>
+    <p class="note">Saved in this browser only. Compare fits as you make changes.</p>
+    <div id="historyBody"></div>
+    <form method="dialog"><button class="primary">Close</button></form>
+  </dialog>
+
+  <footer>Everything runs locally — your video never leaves this computer. Not medical advice; if you have pain or injury, see a professional fitter or physio.</footer>
+  <script type="module" src="app.js"></script>
+</body>
+</html>

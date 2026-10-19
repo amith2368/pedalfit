@@ -1,0 +1,8 @@
+node_modules/
+.DS_Store
+__pycache__/
+*.pyc
+# Your own ride videos stay local
+*.mp4
+*.mov
+*.webm
