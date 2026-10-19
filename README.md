@@ -114,7 +114,7 @@ Angles are measured in 2D, so an angled camera distorts them. The camera positio
 ## Development
 
 ```sh
-npm test    # node:test suites, Node 20+
+npm test    # node:test suites, Node 22+
 ```
 
 The tests drive the analysis with a **synthetic rider** of known geometry ([`tests/synthetic-rider.js`](tests/synthetic-rider.js)).

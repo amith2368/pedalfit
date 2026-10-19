@@ -8,7 +8,7 @@ No build step and no dependencies to install: it's plain ES modules.
 
 ```sh
 python3 server.py   # run the app at http://localhost:8766
-npm test            # run the test suite (Node 20+)
+npm test            # run the test suite (Node 22+)
 ```
 
 ## Where things live
