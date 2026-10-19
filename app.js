@@ -111,7 +111,7 @@ $('#recordBtn').addEventListener('click', async () => {
   }
   video.src = ''; video.controls = false; video.srcObject = stream; await video.play();
   cd.hidden = false; cd.classList.remove('rec');
-  for (let n = 5; n > 0; n--) { cd.textContent = n; await wait(1000); }
+  for (let n = 15; n > 0; n--) { cd.textContent = n; await wait(1000); }
   const rec = new MediaRecorder(stream);
   const chunks = [];
   rec.ondataavailable = (e) => chunks.push(e.data);
