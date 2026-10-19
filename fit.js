@@ -65,7 +65,8 @@ const rad = (d) => (d * Math.PI) / 180;
 // Distance between the ends of two segments joined at an angle (law of cosines).
 const span = (a, b, angDeg) => Math.sqrt(a * a + b * b - 2 * a * b * Math.cos(rad(angDeg)));
 const mmRound = (mm) => Math.round(mm);
-const status = (v, [lo, hi]) => (v < lo ? 'low' : v > hi ? 'high' : 'ok');
+// Compared at the whole-unit precision we display, so "37° vs 27–37°" never reads as out of range.
+const status = (v, [lo, hi]) => (Math.round(v) < lo ? 'low' : Math.round(v) > hi ? 'high' : 'ok');
 const aim = (v, [lo, hi]) => {
   // Aim a little inside the window rather than at its edge.
   const pad = Math.min(1.5, (hi - lo) / 4);
@@ -87,28 +88,40 @@ export function recommend(result, tgt, mobility) {
     const want = aim(m.kneeExt, tgt.kneeExt);
     saddleUp = span(seg.thigh, seg.shank, want) - span(seg.thigh, seg.shank, m.kneeExt);
   }
-  if (m.hipBounce > 18 && saddleUp >= 0) {
-    // Rocking hips usually mean the leg is over-reaching even if the knee angle reads fine.
-    saddleUp = Math.min(saddleUp, -4);
-    recs.push({ area: 'Saddle', title: 'Hips are rocking', detail: `Your hips move ${Math.round(m.hipBounce)} mm up and down each stroke (aim for under ~15 mm). This usually means the saddle is too high or you are reaching for the pedals.`, priority: 2 });
+  let fromHips = false;
+  if (m.hipBounce > 18 && saddleUp === 0) {
+    // Rocking hips can mean over-reaching even when the knee reads fine, but only nudge the saddle down when the
+    // knee is in the upper half of its window; otherwise a drop would push it toward the bottom edge.
+    fromHips = m.kneeExt > (tgt.kneeExt[0] + tgt.kneeExt[1]) / 2;
+    if (fromHips) saddleUp = -4;
+    recs.push({
+      area: 'Saddle', priority: 2, title: 'Hips are rocking',
+      detail: `Your hips move ${Math.round(m.hipBounce)} mm up and down each stroke (aim for under ~15 mm). ` + (fromHips
+        ? 'With your knee near the top of its window, this suggests the saddle is slightly high.'
+        : 'Your knee angle is in range, so leave the saddle height: check from behind for side-to-side rocking, and note that hip tracking from video tends to overstate this.'),
+    });
   }
   if (Math.abs(saddleUp) >= 2) {
     const mm = mmRound(saddleUp);
     const step = Math.abs(mm) > 10 ? ' Make the change in steps of 5–10 mm and ride a few days in between.' : '';
+    const why = fromHips
+      ? 'It is in range, but in the upper half and with rocking hips, so a small drop is worth trying.'
+      : mm > 0 ? 'A low saddle overloads the front of the knee and wastes power.' : 'A high saddle strains the back of the knee and makes the hips rock.';
     recs.push({
       area: 'Saddle', priority: 1, delta: { saddleHeight: mm },
       title: `${mm > 0 ? 'Raise' : 'Lower'} your saddle ~${Math.abs(mm)} mm`,
-      detail: `Knee extension is ${m.kneeExt.toFixed(0)}° vs a target of ${tgt.kneeExt[0]}–${tgt.kneeExt[1]}°. ${mm > 0 ? 'A low saddle overloads the front of the knee and wastes power.' : 'A high saddle strains the back of the knee and makes the hips rock.'} Measure along the seat tube from the bottom-bracket centre to the top of the saddle.${step}`,
+      detail: `Knee extension is ${m.kneeExt.toFixed(0)}° vs a target of ${tgt.kneeExt[0]}–${tgt.kneeExt[1]}°. ${why} Measure along the seat tube from the bottom-bracket centre to the top of the saddle.${step}`,
     });
   }
 
   // 2. Saddle fore-aft from knee-over-pedal.
+  let setback = 0;
   if (status(m.kops, tgt.kops) !== 'ok') {
-    const mm = mmRound(m.kops - aim(m.kops, tgt.kops));
+    const mm = setback = mmRound(m.kops - aim(m.kops, tgt.kops));
     recs.push({
       area: 'Saddle', priority: 3, delta: { saddleSetback: mm },
       title: `Move your saddle ${mm > 0 ? 'back' : 'forward'} ~${Math.abs(mm)} mm`,
-      detail: `With the crank forward your knee is ${Math.abs(Math.round(m.kops))} mm ${m.kops > 0 ? 'ahead of' : 'behind'} the pedal spindle. Knee-over-pedal is a starting point, not a rule — if you are comfortable, leave it. Moving the saddle ${mm > 0 ? 'back raises' : 'forward lowers'} its effective height slightly, so recheck height afterwards.`,
+      detail: `With the crank forward your knee is ${Math.abs(Math.round(m.kops))} mm ${m.kops > 0 ? 'ahead of' : 'behind'} the pedal spindle. Knee-over-pedal is a starting point, not a rule — if you are comfortable, leave it. Moving the saddle ${mm > 0 ? 'back raises' : 'forward lowers'} its effective height slightly, so recheck height afterwards. It also puts you ~${Math.abs(mm)} mm ${mm > 0 ? 'further from' : 'closer to'} the bars; the handlebar advice already allows for that.`,
     });
   }
 
@@ -130,6 +143,11 @@ export function recommend(result, tgt, mobility) {
     const arm = seg.upperArm + seg.forearm;
     reach += arm * rad(aim(m.shoulder, tgt.shoulder) - m.shoulder) * 0.8;
   }
+  // Moving the saddle back already adds that much reach; take it off, but don't let it flip a needed change
+  // into the opposite one (the remaining overshoot stays within the elbow window).
+  const needed = reach;
+  reach -= setback;
+  if (needed !== 0 && Math.sign(reach) !== Math.sign(needed)) reach = 0;
   reach = mmRound(reach); stack = mmRound(stack);
   if (Math.abs(reach) >= 5 || Math.abs(stack) >= 5) {
     const parts = [];
@@ -140,6 +158,7 @@ export function recommend(result, tgt, mobility) {
     if (m.hipClosed < tgt.hipClosed[0]) why.push(`your hip closes to ${m.hipClosed.toFixed(0)}° at the top of the stroke (target ≥ ${tgt.hipClosed[0]}°)`);
     if (status(m.elbow, tgt.elbow) !== 'ok') why.push(`your elbows are at ${m.elbow.toFixed(0)}° (target ${tgt.elbow[0]}–${tgt.elbow[1]}°)`);
     else if (status(m.shoulder, tgt.shoulder) !== 'ok') why.push(`your shoulder angle is ${m.shoulder.toFixed(0)}° (target ${tgt.shoulder[0]}–${tgt.shoulder[1]}°)`);
+    if (setback && Math.abs(reach) >= 5) why.push(`moving the saddle ${setback > 0 ? 'back' : 'forward'} ~${Math.abs(setback)} mm changes your reach by the same amount`);
     const cap = parts.join(' and ');
     recs.push({
       area: 'Handlebars', priority: 2, delta: { barReach: reach, barStack: stack },

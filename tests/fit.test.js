@@ -45,6 +45,39 @@ test('a too-low back angle raises the bars', () => {
   assert.ok(delta.stack > 0, `got stack ${delta.stack}`);
 });
 
+// Hand-set metrics, for cases the synthetic rider can't produce exactly.
+const TGT = { kneeExt: [143, 151], torso: [27, 37], hipClosed: [37, 59], shoulder: [75, 95], elbow: [145, 165], kops: [-15, 15] };
+const fitWith = (over) => {
+  const v = { kneeExt: 147, hipClosed: 50, torso: 32, shoulder: 85, elbow: 155, kops: 0, hipBounce: 10, kneeFlex: 75, shoulderMove: 20, ankleBottom: 130, ankleRange: 25, ...over };
+  const metrics = Object.fromEntries(Object.entries(v).map(([k, value]) => [k, { value, sd: 0 }]));
+  return recommend({ metrics, segments: { thigh: 430, shank: 440, torso: 560, upperArm: 300, forearm: 270 } }, TGT, MOB);
+};
+
+test('rocking hips do not lower a saddle whose knee angle is in the lower half of the window', () => {
+  const { delta, recs } = fitWith({ kneeExt: 146, hipBounce: 38 });
+  assert.equal(delta.saddleUp, 0);
+  assert.ok(recs.some((r) => r.title === 'Hips are rocking'));
+});
+
+test('rocking hips nudge the saddle down when the knee is in the upper half', () => {
+  assert.equal(fitWith({ kneeExt: 150, hipBounce: 38 }).delta.saddleUp, -4);
+});
+
+test('a back angle that rounds to the window edge is in range', () => {
+  const { checks, delta } = fitWith({ torso: 37.3 });
+  assert.equal(checks.find((c) => c.key === 'torso').status, 'ok');
+  assert.equal(delta.stack, 0);
+});
+
+test('moving the saddle back counts toward the reach the elbows need', () => {
+  const alone = fitWith({ elbow: 134 }).delta.reach;
+  const withSetback = fitWith({ elbow: 134, kops: 45 }).delta.reach;
+  assert.ok(alone > 15, `got ${alone}`);
+  assert.equal(withSetback, 0);
+  // With the cockpit fine, a big setback move asks for a shorter stem to keep the same reach.
+  assert.ok(fitWith({ kops: 45 }).delta.reach < -25);
+});
+
 test('stem geometry: a -17° stem on a 73° head tube is level', () => {
   const p = barPosition({ length: 100, angle: -17, spacers: 0, headAngle: 73 });
   assert.ok(Math.abs(p.y) < 1e-9 && Math.abs(p.x - 100) < 1e-9);
